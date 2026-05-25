@@ -1,0 +1,12 @@
+{
+  "name": "hexaloop",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.26.2",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "typecheck": "pnpm --filter web typecheck",
+    "contract:gen": "pnpm --filter web contract:gen"
+  }
+}

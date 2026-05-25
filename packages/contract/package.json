@@ -1,0 +1,11 @@
+{
+  "name": "@hexaloop/contract",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./fixtures/index.ts",
+  "exports": {
+    "./fixtures": "./fixtures/index.ts",
+    "./openapi.yaml": "./openapi.yaml"
+  }
+}

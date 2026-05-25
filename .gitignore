@@ -13,3 +13,4 @@ build/
 .next/
 out/
 .claude/
+/.vs

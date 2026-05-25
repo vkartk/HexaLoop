@@ -13,4 +13,4 @@ build/
 .next/
 out/
 .claude/
-.vs/
+.vs/bin/

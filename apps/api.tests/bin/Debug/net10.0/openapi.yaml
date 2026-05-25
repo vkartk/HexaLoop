@@ -1,0 +1,1495 @@
+openapi: 3.0.3
+info:
+  title: HexaLoop API
+  version: 0.1.0
+  description: |
+    UI-first contract. Shapes are appended here as the React app proves them out
+    against MSW mocks. The .NET backend is built to match what is frozen here.
+    See CONTRACT_CHANGES.md for every breaking edit.
+servers:
+  - url: /api/v1
+    description: Local + production base path
+
+tags:
+  - name: auth
+    description: Login, refresh, current user
+  - name: dashboard
+    description: Role-based dashboard summaries
+  - name: feedback
+    description: Maverick post-training feedback (load, autosave, submit)
+  - name: cycles
+    description: Admin cycle management (list, close, override-close)
+  - name: effectiveness
+    description: Supervisor effectiveness evaluation (queue, load, autosave, submit)
+  - name: chat
+    description: AI assistant. Stub now (degraded=true), Python HttpAiService in Phase 2.
+  - name: notifications
+    description: User-facing notifications centre (list, mark-as-read).
+  - name: reports
+    description: Admin reports (trigger an export, list recent reports).
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Exchange credentials for an access + refresh token
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: admin@hexaloop.dev
+              password: demo
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+              example:
+                accessToken: eyJhbGciOi...mock
+                refreshToken: rt_01HF3K2P...mock
+                expiresInSeconds: 900
+                user:
+                  id: 0192e9a8-2c1d-7a30-9c91-1f6f3a47b001
+                  email: admin@hexaloop.dev
+                  fullName: Alex Director
+                  role: Admin
+                  employeeCode: HX-0001
+                  isActive: true
+        '401':
+          $ref: '#/components/responses/Problem'
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Rotate the access token using a refresh token
+      operationId: refresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: New access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '401':
+          $ref: '#/components/responses/Problem'
+
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Current authenticated user
+      operationId: getMe
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Problem'
+
+  /dashboard/admin:
+    get:
+      tags: [dashboard]
+      summary: Admin / L&D dashboard summary
+      operationId: getAdminDashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Admin dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDashboard'
+
+  /dashboard/maverick:
+    get:
+      tags: [dashboard]
+      summary: Maverick (learner) dashboard summary
+      operationId: getMaverickDashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Maverick dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaverickDashboard'
+
+  /dashboard/supervisor:
+    get:
+      tags: [dashboard]
+      summary: Supervisor dashboard summary
+      operationId: getSupervisorDashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Supervisor dashboard payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupervisorDashboard'
+
+  /feedback/{cycleId}:
+    parameters:
+      - $ref: '#/components/parameters/CycleIdParam'
+    get:
+      tags: [feedback]
+      summary: Load the form bundle (cycle context + the caller's draft)
+      operationId: getFeedbackForm
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Form bundle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackFormBundle'
+        '404':
+          $ref: '#/components/responses/Problem'
+    put:
+      tags: [feedback]
+      summary: Autosave a partial draft (idempotent; replaces the caller's draft fields)
+      operationId: autosaveFeedback
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackDraftPatch'
+            example:
+              overallRating: 4
+              highlights: 'The labs were the highlight.'
+              improvements: 'Pacing felt rushed in module 2.'
+      responses:
+        '200':
+          description: Saved draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackDraft'
+        '409':
+          description: Submitted drafts cannot be modified
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+  /notifications:
+    get:
+      tags: [notifications]
+      summary: Notifications for the current user
+      operationId: listNotifications
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Notifications + unread count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationListResponse'
+
+  /notifications/{notificationId}/read:
+    parameters:
+      - name: notificationId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [notifications]
+      summary: Mark a notification as Read
+      operationId: markNotificationRead
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Updated notification
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          $ref: '#/components/responses/Problem'
+
+  /reports:
+    get:
+      tags: [reports]
+      summary: List recent reports the Admin has triggered
+      operationId: listReports
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Recent reports (newest first)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Report'
+    post:
+      tags: [reports]
+      summary: Trigger a new report export. Admin only.
+      operationId: triggerReport
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportRequest'
+      responses:
+        '202':
+          description: Queued / Ready (stub returns Ready immediately)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+        '403':
+          $ref: '#/components/responses/Problem'
+
+  /chat:
+    post:
+      tags: [chat]
+      summary: |
+        Ask the assistant a question. Stateless — the client sends the whole
+        conversation each turn. The reply is always tagged with an AiBadge;
+        when degraded=true the response came from the .NET StubAiService
+        (rule-based) and the UI labels it subtly.
+      operationId: chat
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            example:
+              messages:
+                - role: user
+                  content: Which cycle is at risk?
+              context:
+                route: /admin
+      responses:
+        '200':
+          description: Assistant reply
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatReply'
+
+  /effectiveness/pending:
+    get:
+      tags: [effectiveness]
+      summary: Supervisor's queue of pending effectiveness evaluations
+      operationId: listPendingEffectiveness
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Pending items (and recent submissions)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffectivenessQueue'
+
+  /effectiveness/{cycleId}/{maverickId}:
+    parameters:
+      - $ref: '#/components/parameters/CycleIdParam'
+      - name: maverickId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [effectiveness]
+      summary: Load the effectiveness form bundle for a (cycle, maverick) pair
+      operationId: getEffectivenessForm
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Form bundle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffectivenessFormBundle'
+        '404':
+          $ref: '#/components/responses/Problem'
+    put:
+      tags: [effectiveness]
+      summary: Autosave a partial draft (idempotent)
+      operationId: autosaveEffectiveness
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EffectivenessDraftPatch'
+      responses:
+        '200':
+          description: Saved draft
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffectivenessDraft'
+        '409':
+          $ref: '#/components/responses/Problem'
+
+  /effectiveness/{cycleId}/{maverickId}/submit:
+    parameters:
+      - $ref: '#/components/parameters/CycleIdParam'
+      - name: maverickId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [effectiveness]
+      summary: Finalize the effectiveness response.
+      operationId: submitEffectiveness
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EffectivenessSubmit'
+      responses:
+        '200':
+          description: Submitted response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EffectivenessDraft'
+        '409':
+          $ref: '#/components/responses/Problem'
+
+  /cycles:
+    get:
+      tags: [cycles]
+      summary: List feedback cycles (paginated, filterable)
+      operationId: listCycles
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [Open, Closed, OverrideClosed]
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/CycleType'
+        - name: q
+          in: query
+          description: Free-text search across course name + trainer
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated cycle list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CyclePage'
+
+  /cycles/{cycleId}/close:
+    parameters:
+      - $ref: '#/components/parameters/CycleIdParam'
+    post:
+      tags: [cycles]
+      summary: Close a cycle. Returns 409 if completion is below threshold.
+      operationId: closeCycle
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Cycle closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cycle'
+        '409':
+          description: Below threshold or already closed
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemBelowThreshold'
+
+  /cycles/{cycleId}/override-close:
+    parameters:
+      - $ref: '#/components/parameters/CycleIdParam'
+    post:
+      tags: [cycles]
+      summary: |
+        Admin-only override-close. Bypasses the threshold and writes an
+        AuditLog row server-side. Reason is mandatory.
+      operationId: overrideCloseCycle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OverrideCloseRequest'
+      responses:
+        '200':
+          description: Cycle override-closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cycle'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+
+  /feedback/{cycleId}/submit:
+    parameters:
+      - $ref: '#/components/parameters/CycleIdParam'
+    post:
+      tags: [feedback]
+      summary: Finalize the draft. All required fields must be present.
+      operationId: submitFeedback
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackSubmit'
+      responses:
+        '200':
+          description: Submitted feedback
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackDraft'
+        '409':
+          description: Cycle closed, threshold blocked, or draft incomplete
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+components:
+  parameters:
+    CycleIdParam:
+      name: cycleId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Problem:
+      description: RFC 9457 problem+json error
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem+json
+      required: [type, title, status, traceId]
+      properties:
+        type:
+          type: string
+          format: uri
+          example: about:blank
+        title:
+          type: string
+          example: Unauthorized
+        status:
+          type: integer
+          example: 401
+        detail:
+          type: string
+          example: Invalid credentials
+        traceId:
+          type: string
+          example: 01HF3K2P3QYG1B6Y4W5Z6V7X8Y
+
+    Role:
+      type: string
+      enum: [Admin, Maverick, Supervisor]
+
+    User:
+      type: object
+      required: [id, email, fullName, role, isActive]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: UUID v7
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        employeeCode:
+          type: string
+          nullable: true
+        managerId:
+          type: string
+          format: uuid
+          nullable: true
+        isActive:
+          type: boolean
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+
+    AuthSession:
+      type: object
+      required: [accessToken, refreshToken, expiresInSeconds, user]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresInSeconds:
+          type: integer
+          description: Seconds until the access token expires
+        user:
+          $ref: '#/components/schemas/User'
+
+    AiBadge:
+      type: object
+      description: Stamp on any AI-derived value. degraded=true means the stub or a fallback produced it; UI must label it subtly.
+      required: [aiGenerated, degraded]
+      properties:
+        aiGenerated:
+          type: boolean
+        degraded:
+          type: boolean
+        generatedAt:
+          type: string
+          format: date-time
+        sourceCount:
+          type: integer
+          description: How many responses contributed to this value
+
+    Trend:
+      type: object
+      required: [direction, deltaPct]
+      properties:
+        direction:
+          type: string
+          enum: [up, down, flat]
+        deltaPct:
+          type: number
+          description: Percent change vs the prior period
+
+    MetricCard:
+      type: object
+      required: [key, label, value]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        value:
+          type: string
+          description: Pre-formatted display value (e.g. "82%", "4.2/5")
+        helper:
+          type: string
+          nullable: true
+        trend:
+          $ref: '#/components/schemas/Trend'
+
+    SentimentBreakdown:
+      type: object
+      required: [positive, neutral, negative, ai]
+      properties:
+        positive:
+          type: number
+        neutral:
+          type: number
+        negative:
+          type: number
+        ai:
+          $ref: '#/components/schemas/AiBadge'
+
+    TrainerScorecardRow:
+      type: object
+      required: [trainerId, name, courses, sessions, avgRating, completionRate]
+      properties:
+        trainerId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        organization:
+          type: string
+          nullable: true
+        courses:
+          type: integer
+        sessions:
+          type: integer
+        avgRating:
+          type: number
+        completionRate:
+          type: number
+
+    Alert:
+      type: object
+      required: [id, severity, title, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        severity:
+          type: string
+          enum: [info, warn, alert]
+        title:
+          type: string
+        body:
+          type: string
+          nullable: true
+        cycleId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    AiInsightBanner:
+      type: object
+      required: [summary, ai]
+      properties:
+        summary:
+          type: string
+          description: One-paragraph natural language insight
+        topThemes:
+          type: array
+          items:
+            type: string
+        ai:
+          $ref: '#/components/schemas/AiBadge'
+
+    AdminDashboard:
+      type: object
+      required: [metrics, sentiment, trainers, alerts, insight]
+      properties:
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricCard'
+        sentiment:
+          $ref: '#/components/schemas/SentimentBreakdown'
+        trainers:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainerScorecardRow'
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        insight:
+          $ref: '#/components/schemas/AiInsightBanner'
+
+    PendingFeedbackItem:
+      type: object
+      required: [cycleId, courseName, dueAt, status]
+      properties:
+        cycleId:
+          type: string
+          format: uuid
+        courseName:
+          type: string
+        trainerName:
+          type: string
+          nullable: true
+        sessionEndedAt:
+          type: string
+          format: date-time
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [NotStarted, Draft, Submitted]
+
+    MaverickDashboard:
+      type: object
+      required: [pending, completed, streak]
+      properties:
+        pending:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingFeedbackItem'
+        completed:
+          type: array
+          items:
+            $ref: '#/components/schemas/PendingFeedbackItem'
+        streak:
+          type: object
+          required: [submittedCount, onTimeRate]
+          properties:
+            submittedCount:
+              type: integer
+            onTimeRate:
+              type: number
+
+    SupervisorTeamRow:
+      type: object
+      required: [maverickId, maverickName, pendingCount, lastSubmittedAt]
+      properties:
+        maverickId:
+          type: string
+          format: uuid
+        maverickName:
+          type: string
+        pendingCount:
+          type: integer
+        lastSubmittedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    SupervisorDashboard:
+      type: object
+      required: [pendingEvaluations, team, metrics]
+      properties:
+        pendingEvaluations:
+          type: integer
+        team:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupervisorTeamRow'
+        metrics:
+          type: array
+          items:
+            $ref: '#/components/schemas/MetricCard'
+
+    FeedbackCycleContext:
+      type: object
+      description: Snapshot the Maverick sees while answering — read-only on the client.
+      required: [cycleId, courseName, dueAt, status]
+      properties:
+        cycleId:
+          type: string
+          format: uuid
+        courseName:
+          type: string
+        trainerName:
+          type: string
+          nullable: true
+        sessionEndedAt:
+          type: string
+          format: date-time
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [Open, Closed, OverrideClosed]
+
+    FeedbackDraft:
+      type: object
+      required: [cycleId, status, updatedAt]
+      properties:
+        cycleId:
+          type: string
+          format: uuid
+        overallRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        highlights:
+          type: string
+          maxLength: 2000
+          nullable: true
+        improvements:
+          type: string
+          maxLength: 2000
+          nullable: true
+        status:
+          type: string
+          enum: [Draft, Submitted]
+        updatedAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    FeedbackDraftPatch:
+      type: object
+      description: |
+        Partial autosave body. Any present field replaces the stored value.
+        Omitted fields are untouched. PUT is idempotent — re-sending the same
+        body is safe and returns the same draft.
+      properties:
+        overallRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        highlights:
+          type: string
+          maxLength: 2000
+          nullable: true
+        improvements:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    FeedbackSubmit:
+      type: object
+      description: Strict shape for the finalize call. All required fields must be present.
+      required: [overallRating, highlights, improvements]
+      properties:
+        overallRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+        highlights:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        improvements:
+          type: string
+          minLength: 1
+          maxLength: 2000
+
+    FeedbackFormBundle:
+      type: object
+      required: [cycle, draft]
+      properties:
+        cycle:
+          $ref: '#/components/schemas/FeedbackCycleContext'
+        draft:
+          $ref: '#/components/schemas/FeedbackDraft'
+
+    CycleType:
+      type: string
+      enum: [MaverickPostTraining, SupervisorEffectiveness]
+
+    CycleStatus:
+      type: string
+      enum: [Open, Closed, OverrideClosed]
+
+    TriggerBasis:
+      type: string
+      enum: [TrainingCompletion, Post3MonthProject]
+
+    Cycle:
+      type: object
+      required:
+        - id
+        - sessionId
+        - courseName
+        - type
+        - status
+        - threshold
+        - opensAt
+        - expectedCount
+        - responseCount
+        - completionRate
+        - triggerBasis
+      properties:
+        id:
+          type: string
+          format: uuid
+        sessionId:
+          type: string
+          format: uuid
+        courseName:
+          type: string
+        trainerName:
+          type: string
+          nullable: true
+        type:
+          $ref: '#/components/schemas/CycleType'
+        status:
+          $ref: '#/components/schemas/CycleStatus'
+        threshold:
+          type: number
+          description: Minimum completion (0..1) required to close without override.
+          example: 0.78
+        opensAt:
+          type: string
+          format: date-time
+        closesAt:
+          type: string
+          format: date-time
+          nullable: true
+        expectedCount:
+          type: integer
+          description: Total Mavericks (or supervisors) expected to respond.
+        responseCount:
+          type: integer
+        completionRate:
+          type: number
+          description: responseCount / expectedCount, server-computed (0..1).
+        triggerBasis:
+          $ref: '#/components/schemas/TriggerBasis'
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+        closedByName:
+          type: string
+          nullable: true
+        overrideReason:
+          type: string
+          nullable: true
+          description: Present iff status=OverrideClosed.
+
+    CyclePage:
+      type: object
+      required: [data, page, pageSize, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Cycle'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+
+    OverrideCloseRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 500
+          description: Justification recorded in the AuditLog.
+
+    ProblemBelowThreshold:
+      description: |
+        409 returned when POST /cycles/{id}/close is called while completion
+        is below the configured threshold. Extends RFC 9457 Problem with
+        machine-readable rates so the UI can render the gap.
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [currentRate, requiredRate, cycleId]
+          properties:
+            currentRate:
+              type: number
+            requiredRate:
+              type: number
+            cycleId:
+              type: string
+              format: uuid
+
+    EffectivenessCycleContext:
+      type: object
+      required: [cycleId, courseName, dueAt, status]
+      properties:
+        cycleId:
+          type: string
+          format: uuid
+        courseName:
+          type: string
+        trainerName:
+          type: string
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        status:
+          $ref: '#/components/schemas/CycleStatus'
+
+    EffectivenessMaverickContext:
+      type: object
+      description: Read-only snapshot of the Maverick being evaluated.
+      required: [id, fullName, employeeCode]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+        employeeCode:
+          type: string
+          nullable: true
+        sessionEndedAt:
+          type: string
+          format: date-time
+          nullable: true
+        avgPostTrainingRating:
+          type: number
+          nullable: true
+          description: Maverick's own post-training rating for this course (1..5) if available.
+
+    EffectivenessDraft:
+      type: object
+      required: [cycleId, maverickId, status, updatedAt]
+      properties:
+        cycleId:
+          type: string
+          format: uuid
+        maverickId:
+          type: string
+          format: uuid
+        technicalCompetency:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        softSkills:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        projectPerformance:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        overallReadiness:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        comments:
+          type: string
+          maxLength: 2000
+          nullable: true
+        futureTrainingRecommendations:
+          type: string
+          maxLength: 2000
+          nullable: true
+        status:
+          type: string
+          enum: [Draft, Submitted]
+        updatedAt:
+          type: string
+          format: date-time
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    EffectivenessDraftPatch:
+      type: object
+      description: |
+        Partial autosave body. Any present field replaces the stored value.
+        PUT is idempotent — re-sending the same body is safe.
+      properties:
+        technicalCompetency:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        softSkills:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        projectPerformance:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        overallReadiness:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        comments:
+          type: string
+          maxLength: 2000
+          nullable: true
+        futureTrainingRecommendations:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    EffectivenessSubmit:
+      type: object
+      description: Strict shape for the finalize call. All four ratings + comments required.
+      required:
+        - technicalCompetency
+        - softSkills
+        - projectPerformance
+        - overallReadiness
+        - comments
+      properties:
+        technicalCompetency:
+          type: integer
+          minimum: 1
+          maximum: 5
+        softSkills:
+          type: integer
+          minimum: 1
+          maximum: 5
+        projectPerformance:
+          type: integer
+          minimum: 1
+          maximum: 5
+        overallReadiness:
+          type: integer
+          minimum: 1
+          maximum: 5
+        comments:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        futureTrainingRecommendations:
+          type: string
+          maxLength: 2000
+          nullable: true
+
+    EffectivenessFormBundle:
+      type: object
+      required: [cycle, maverick, draft]
+      properties:
+        cycle:
+          $ref: '#/components/schemas/EffectivenessCycleContext'
+        maverick:
+          $ref: '#/components/schemas/EffectivenessMaverickContext'
+        draft:
+          $ref: '#/components/schemas/EffectivenessDraft'
+
+    EffectivenessPendingItem:
+      type: object
+      required: [cycleId, maverickId, maverickName, courseName, dueAt, status]
+      properties:
+        cycleId:
+          type: string
+          format: uuid
+        maverickId:
+          type: string
+          format: uuid
+        maverickName:
+          type: string
+        courseName:
+          type: string
+        trainerName:
+          type: string
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [NotStarted, Draft, Submitted]
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    EffectivenessQueue:
+      type: object
+      required: [pending, recentlySubmitted]
+      properties:
+        pending:
+          type: array
+          items:
+            $ref: '#/components/schemas/EffectivenessPendingItem'
+        recentlySubmitted:
+          type: array
+          items:
+            $ref: '#/components/schemas/EffectivenessPendingItem'
+
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+          maxLength: 4000
+
+    ChatContext:
+      type: object
+      description: Page the user is on. Lets the assistant tailor its reply.
+      properties:
+        route:
+          type: string
+          nullable: true
+
+    ChatRequest:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatMessage'
+          minItems: 1
+        context:
+          $ref: '#/components/schemas/ChatContext'
+
+    ChatDataItem:
+      type: object
+      description: One row in an optional structured payload (e.g. a list of cycles or feedback items).
+      required: [label]
+      properties:
+        label:
+          type: string
+        sublabel:
+          type: string
+          nullable: true
+        href:
+          type: string
+          nullable: true
+          description: Internal app path the UI can link to.
+
+    ChatData:
+      type: object
+      required: [kind, items]
+      properties:
+        kind:
+          type: string
+          description: |
+            Hint for how to render the payload. Initially "list"; future
+            variants ("table", "chart") will extend this without breaking
+            old clients.
+        title:
+          type: string
+          nullable: true
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChatDataItem'
+
+    ChatReply:
+      type: object
+      required: [id, message, ai]
+      properties:
+        id:
+          type: string
+          format: uuid
+        message:
+          $ref: '#/components/schemas/ChatMessage'
+        suggestions:
+          type: array
+          items:
+            type: string
+          description: Suggested follow-up prompts.
+        data:
+          $ref: '#/components/schemas/ChatData'
+        ai:
+          $ref: '#/components/schemas/AiBadge'
+
+    NotificationChannel:
+      type: string
+      enum: [Email, SMS, Portal]
+
+    NotificationStatus:
+      type: string
+      enum: [Queued, Sent, Failed, Read]
+
+    NotificationSeverity:
+      type: string
+      enum: [info, warn, alert]
+      description: UI tone hint. Independent of delivery status.
+
+    Notification:
+      type: object
+      required: [id, channel, subject, status, severity, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
+        subject:
+          type: string
+        body:
+          type: string
+          nullable: true
+        status:
+          $ref: '#/components/schemas/NotificationStatus'
+        severity:
+          $ref: '#/components/schemas/NotificationSeverity'
+        relatedCycleId:
+          type: string
+          format: uuid
+          nullable: true
+        href:
+          type: string
+          nullable: true
+          description: Internal path the UI links the notification to.
+        createdAt:
+          type: string
+          format: date-time
+        sentAt:
+          type: string
+          format: date-time
+          nullable: true
+        readAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    NotificationListResponse:
+      type: object
+      required: [data, unreadCount]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        unreadCount:
+          type: integer
+
+    ReportFormat:
+      type: string
+      enum: [Xlsx, Csv, Pdf]
+
+    ReportScope:
+      type: string
+      enum: [Cycles, Trainers, Sentiment]
+
+    ReportStatus:
+      type: string
+      enum: [Queued, Running, Ready, Failed]
+
+    ReportRequest:
+      type: object
+      required: [scope, format]
+      properties:
+        scope:
+          $ref: '#/components/schemas/ReportScope'
+        format:
+          $ref: '#/components/schemas/ReportFormat'
+        cycleStatus:
+          $ref: '#/components/schemas/CycleStatus'
+        dateFrom:
+          type: string
+          format: date
+          nullable: true
+        dateTo:
+          type: string
+          format: date
+          nullable: true
+
+    Report:
+      type: object
+      required: [id, scope, format, status, requestedAt, requestedByName]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scope:
+          $ref: '#/components/schemas/ReportScope'
+        format:
+          $ref: '#/components/schemas/ReportFormat'
+        status:
+          $ref: '#/components/schemas/ReportStatus'
+        cycleStatus:
+          $ref: '#/components/schemas/CycleStatus'
+          nullable: true
+        dateFrom:
+          type: string
+          format: date
+          nullable: true
+        dateTo:
+          type: string
+          format: date
+          nullable: true
+        downloadUrl:
+          type: string
+          nullable: true
+          description: Internal path or signed URL. Only set when status=Ready.
+        rowCount:
+          type: integer
+          nullable: true
+        requestedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        requestedByName:
+          type: string

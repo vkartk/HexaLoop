@@ -23,6 +23,10 @@ import {
   markNotificationRead,
   reports,
   triggerReport,
+  listTrainers,
+  getTrainerScorecard,
+  listPeople,
+  listFeedbackHistory,
 } from '@hexaloop/contract/fixtures';
 import type { components } from '@/lib/api/schema.gen';
 
@@ -277,6 +281,20 @@ export const handlers = [
     return HttpResponse.json(next);
   }),
 
+  http.get(`${BASE}/feedback/history`, async ({ request }) => {
+    await delay(NETWORK_DELAY_MS);
+    const result = requireUser(request);
+    if (result instanceof Response) return result;
+    const url = new URL(request.url);
+    const page = url.searchParams.get('page');
+    const pageSize = url.searchParams.get('pageSize');
+    const payload = listFeedbackHistory(result.id, {
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+    return HttpResponse.json(payload);
+  }),
+
   http.get(`${BASE}/feedback/:cycleId`, async ({ request, params }) => {
     await delay(NETWORK_DELAY_MS);
     const result = requireUser(request);
@@ -433,6 +451,52 @@ export const handlers = [
       result.fullName,
     );
     return HttpResponse.json(report, { status: 202 });
+  }),
+
+  http.get(`${BASE}/trainers`, async ({ request }) => {
+    await delay(NETWORK_DELAY_MS);
+    const result = requireUser(request);
+    if (result instanceof Response) return result;
+    if (result.role !== 'Admin') return problem(403, 'Forbidden', 'Admin role required');
+    const url = new URL(request.url);
+    const page = url.searchParams.get('page');
+    const pageSize = url.searchParams.get('pageSize');
+    const payload = listTrainers({
+      engagementType: url.searchParams.get('engagementType') ?? undefined,
+      domain: url.searchParams.get('domain') ?? undefined,
+      q: url.searchParams.get('q') ?? undefined,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+    return HttpResponse.json(payload);
+  }),
+
+  http.get(`${BASE}/trainers/:trainerId/scorecard`, async ({ request, params }) => {
+    await delay(NETWORK_DELAY_MS);
+    const result = requireUser(request);
+    if (result instanceof Response) return result;
+    if (result.role !== 'Admin') return problem(403, 'Forbidden', 'Admin role required');
+    const card = getTrainerScorecard(String(params.trainerId));
+    if (!card) return problem(404, 'Not found', 'No such trainer');
+    return HttpResponse.json(card);
+  }),
+
+  http.get(`${BASE}/people`, async ({ request }) => {
+    await delay(NETWORK_DELAY_MS);
+    const result = requireUser(request);
+    if (result instanceof Response) return result;
+    if (result.role !== 'Admin') return problem(403, 'Forbidden', 'Admin role required');
+    const url = new URL(request.url);
+    const page = url.searchParams.get('page');
+    const pageSize = url.searchParams.get('pageSize');
+    const payload = listPeople({
+      role: url.searchParams.get('role') ?? undefined,
+      status: url.searchParams.get('status') ?? undefined,
+      q: url.searchParams.get('q') ?? undefined,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+    return HttpResponse.json(payload);
   }),
 
   http.post(`${BASE}/chat`, async ({ request }) => {

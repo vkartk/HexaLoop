@@ -10,6 +10,9 @@ import { EffectivenessFormPage } from '@/features/effectiveness/effectiveness-fo
 import { NotificationsPage } from '@/features/notifications/notifications-page';
 import { ReportsPage } from '@/features/reports/reports-page';
 import { SupervisorDashboardPage } from '@/features/dashboard-supervisor/supervisor-dashboard-page';
+import { TrainersListPage } from '@/features/trainers/trainers-list-page';
+import { PeopleListPage } from '@/features/people/people-list-page';
+import { HistoryPage } from '@/features/history/history-page';
 import { RequireAuth } from './guards';
 import { RoleRedirect } from './role-redirect';
 import { PlaceholderPage } from './placeholder-page';
@@ -36,6 +39,14 @@ const routes: RouteObject[] = [
         element: <RequireAuth roles={['Admin']}><CyclesListPage /></RequireAuth>,
       },
       {
+        path: 'admin/trainers',
+        element: <RequireAuth roles={['Admin']}><TrainersListPage /></RequireAuth>,
+      },
+      {
+        path: 'admin/people',
+        element: <RequireAuth roles={['Admin']}><PeopleListPage /></RequireAuth>,
+      },
+      {
         path: 'admin/reports',
         element: <RequireAuth roles={['Admin']}><ReportsPage /></RequireAuth>,
       },
@@ -50,6 +61,10 @@ const routes: RouteObject[] = [
       {
         path: 'maverick',
         element: <RequireAuth roles={['Maverick']}><MaverickDashboardPage /></RequireAuth>,
+      },
+      {
+        path: 'maverick/history',
+        element: <RequireAuth roles={['Maverick']}><HistoryPage /></RequireAuth>,
       },
       {
         path: 'maverick/notifications',

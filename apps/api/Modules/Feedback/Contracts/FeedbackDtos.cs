@@ -33,3 +33,27 @@ public sealed record FeedbackSubmitBody(
     int OverallRating,
     string Highlights,
     string Improvements);
+
+public enum FeedbackHistoryStatus
+{
+    NotStarted,
+    Draft,
+    Submitted,
+}
+
+public sealed record FeedbackHistoryItem(
+    Guid CycleId,
+    string CourseName,
+    string? TrainerName,
+    DateTimeOffset? SessionEndedAt,
+    DateTimeOffset DueAt,
+    FeedbackHistoryStatus Status,
+    int? OverallRating,
+    DateTimeOffset? SubmittedAt,
+    CycleStatus CycleStatus);
+
+public sealed record FeedbackHistoryPage(
+    IReadOnlyList<FeedbackHistoryItem> Data,
+    int Page,
+    int PageSize,
+    int Total);

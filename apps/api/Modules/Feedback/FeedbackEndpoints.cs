@@ -11,6 +11,18 @@ public static class FeedbackEndpoints
     {
         var fb = app.MapGroup("/feedback").RequireAuthorization("Maverick").WithTags("feedback");
 
+        // /feedback/history is available to every authenticated user — Mavericks see
+        // their own log; Admins/Supervisors logically have nothing to see but the
+        // shape is the same and the contract advertises it for all roles.
+        var fbShared = app.MapGroup("/feedback").RequireAuthorization().WithTags("history");
+        fbShared.MapGet("/history", async (int? page, int? pageSize, ISender sender) =>
+            {
+                var result = await sender.Send(new ListFeedbackHistoryQuery(page ?? 1, pageSize ?? 20));
+                return Results.Ok(result);
+            })
+            .WithName("listFeedbackHistory")
+            .Produces<FeedbackHistoryPage>(StatusCodes.Status200OK);
+
         fb.MapGet("/{cycleId:guid}", async (Guid cycleId, ISender sender) =>
             {
                 var bundle = await sender.Send(new GetFeedbackFormQuery(cycleId));

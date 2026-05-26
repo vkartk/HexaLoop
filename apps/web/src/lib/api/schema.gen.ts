@@ -318,6 +318,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trainers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List trainers with aggregate stats (Admin only) */
+        get: operations["listTrainers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/trainers/{trainerId}/scorecard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trainerId: string;
+            };
+            cookie?: never;
+        };
+        /** Per-trainer scorecard (Admin only) */
+        get: operations["getTrainerScorecard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/people": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List users (Admin only) */
+        get: operations["listPeople"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/feedback/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Maverick's own feedback history (all roles) */
+        get: operations["listFeedbackHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/feedback/{cycleId}/submit": {
         parameters: {
             query?: never;
@@ -774,6 +844,97 @@ export interface components {
             /** Format: date-time */
             completedAt?: string | null;
             requestedByName: string;
+        };
+        /** @enum {string} */
+        TrainerEngagementType: "Internal" | "External";
+        TrainerListRow: {
+            /** Format: uuid */
+            trainerId: string;
+            name: string;
+            organization?: string | null;
+            engagementType: components["schemas"]["TrainerEngagementType"];
+            domain: string;
+            courses: number;
+            sessions: number;
+            avgRating: number;
+            completionRate: number;
+        };
+        TrainerPage: {
+            data: components["schemas"]["TrainerListRow"][];
+            page: number;
+            pageSize: number;
+            total: number;
+        };
+        TrainerScorecardCycle: {
+            /** Format: uuid */
+            cycleId: string;
+            courseName: string;
+            completionRate: number;
+            /** @description Mean overall rating across submitted responses, null if no responses yet. */
+            avgRating: number | null;
+            status: components["schemas"]["CycleStatus"];
+            /** Format: date-time */
+            closedAt: string | null;
+        };
+        TrainerScorecard: {
+            trainer: components["schemas"]["TrainerListRow"];
+            lifetime: {
+                sessions: number;
+                responses: number;
+                avgRating: number;
+                completionRate: number;
+            };
+            recentCycles: components["schemas"]["TrainerScorecardCycle"][];
+            sentiment: components["schemas"]["SentimentBreakdown"];
+        };
+        /** @enum {string} */
+        PersonStatus: "Active" | "Inactive";
+        PersonRow: {
+            /** Format: uuid */
+            id: string;
+            fullName: string;
+            /** Format: email */
+            email: string;
+            role: components["schemas"]["Role"];
+            status: components["schemas"]["PersonStatus"];
+            employeeCode?: string | null;
+            /** Format: uuid */
+            managerId?: string | null;
+            managerName?: string | null;
+            /** Format: date-time */
+            lastActiveAt?: string | null;
+        };
+        PeoplePage: {
+            data: components["schemas"]["PersonRow"][];
+            page: number;
+            pageSize: number;
+            total: number;
+        };
+        /**
+         * @description A single past or in-progress post-training feedback for the calling Maverick.
+         *     `overallRating` and `submittedAt` are null while still a draft.
+         */
+        FeedbackHistoryItem: {
+            /** Format: uuid */
+            cycleId: string;
+            courseName: string;
+            trainerName?: string | null;
+            /** Format: date-time */
+            sessionEndedAt?: string | null;
+            /** Format: date-time */
+            dueAt: string;
+            /** @enum {string} */
+            status: "NotStarted" | "Draft" | "Submitted";
+            overallRating?: number | null;
+            /** Format: date-time */
+            submittedAt?: string | null;
+            cycleStatus?: components["schemas"]["CycleStatus"];
+        };
+        FeedbackHistoryPage: {
+            data: components["schemas"]["FeedbackHistoryItem"][];
+            page: number;
+            pageSize: number;
+            total: number;
         };
     };
     responses: {
@@ -1328,6 +1489,111 @@ export interface operations {
             };
             403: components["responses"]["Problem"];
             409: components["responses"]["Problem"];
+        };
+    };
+    listTrainers: {
+        parameters: {
+            query?: {
+                /** @description Filter to Internal or External trainers */
+                engagementType?: components["schemas"]["TrainerEngagementType"];
+                /** @description Free-text match against the trainer's domain expertise */
+                domain?: string;
+                /** @description Free-text search across name + organization */
+                q?: string;
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated trainer directory */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainerPage"];
+                };
+            };
+            403: components["responses"]["Problem"];
+        };
+    };
+    getTrainerScorecard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                trainerId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Scorecard with recent cycles + sentiment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainerScorecard"];
+                };
+            };
+            403: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+        };
+    };
+    listPeople: {
+        parameters: {
+            query?: {
+                role?: components["schemas"]["Role"];
+                status?: "Active" | "Inactive";
+                /** @description Free-text search across name, email, employee code */
+                q?: string;
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated people directory */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PeoplePage"];
+                };
+            };
+            403: components["responses"]["Problem"];
+        };
+    };
+    listFeedbackHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Submissions + drafts, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedbackHistoryPage"];
+                };
+            };
         };
     };
     submitFeedback: {

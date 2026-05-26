@@ -28,3 +28,6 @@ export {
 export { stubChatReply, suggestionsForRole } from './chat';
 export { listNotifications, markNotificationRead } from './notifications';
 export { reports, triggerReport } from './reports';
+export { trainerStore, listTrainers, getTrainerScorecard } from './trainers';
+export { peopleStore, listPeople } from './people';
+export { listFeedbackHistory } from './history';

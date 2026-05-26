@@ -27,6 +27,12 @@ tags:
     description: User-facing notifications centre (list, mark-as-read).
   - name: reports
     description: Admin reports (trigger an export, list recent reports).
+  - name: trainers
+    description: Admin trainer directory + per-trainer scorecard.
+  - name: people
+    description: Admin people directory (users by role).
+  - name: history
+    description: Maverick personal feedback history.
 
 paths:
   /auth/login:
@@ -503,6 +509,152 @@ paths:
           $ref: '#/components/responses/Problem'
         '409':
           $ref: '#/components/responses/Problem'
+
+  /trainers:
+    get:
+      tags: [trainers]
+      summary: List trainers with aggregate stats (Admin only)
+      operationId: listTrainers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: engagementType
+          in: query
+          description: Filter to Internal or External trainers
+          schema:
+            $ref: '#/components/schemas/TrainerEngagementType'
+        - name: domain
+          in: query
+          description: Free-text match against the trainer's domain expertise
+          schema:
+            type: string
+        - name: q
+          in: query
+          description: Free-text search across name + organization
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Paginated trainer directory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerPage'
+        '403':
+          $ref: '#/components/responses/Problem'
+
+  /trainers/{trainerId}/scorecard:
+    parameters:
+      - name: trainerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [trainers]
+      summary: Per-trainer scorecard (Admin only)
+      operationId: getTrainerScorecard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Scorecard with recent cycles + sentiment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrainerScorecard'
+        '403':
+          $ref: '#/components/responses/Problem'
+        '404':
+          $ref: '#/components/responses/Problem'
+
+  /people:
+    get:
+      tags: [people]
+      summary: List users (Admin only)
+      operationId: listPeople
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/Role'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [Active, Inactive]
+        - name: q
+          in: query
+          description: Free-text search across name, email, employee code
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: Paginated people directory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeoplePage'
+        '403':
+          $ref: '#/components/responses/Problem'
+
+  /feedback/history:
+    get:
+      tags: [history]
+      summary: Maverick's own feedback history (all roles)
+      operationId: listFeedbackHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Submissions + drafts, newest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackHistoryPage'
 
   /feedback/{cycleId}/submit:
     parameters:
@@ -1493,3 +1645,208 @@ components:
           nullable: true
         requestedByName:
           type: string
+
+    TrainerEngagementType:
+      type: string
+      enum: [Internal, External]
+
+    TrainerListRow:
+      type: object
+      required:
+        - trainerId
+        - name
+        - engagementType
+        - domain
+        - courses
+        - sessions
+        - avgRating
+        - completionRate
+      properties:
+        trainerId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        organization:
+          type: string
+          nullable: true
+        engagementType:
+          $ref: '#/components/schemas/TrainerEngagementType'
+        domain:
+          type: string
+        courses:
+          type: integer
+        sessions:
+          type: integer
+        avgRating:
+          type: number
+        completionRate:
+          type: number
+
+    TrainerPage:
+      type: object
+      required: [data, page, pageSize, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainerListRow'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+
+    TrainerScorecardCycle:
+      type: object
+      required: [cycleId, courseName, completionRate, avgRating, status, closedAt]
+      properties:
+        cycleId:
+          type: string
+          format: uuid
+        courseName:
+          type: string
+        completionRate:
+          type: number
+        avgRating:
+          type: number
+          nullable: true
+          description: Mean overall rating across submitted responses, null if no responses yet.
+        status:
+          $ref: '#/components/schemas/CycleStatus'
+        closedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    TrainerScorecard:
+      type: object
+      required:
+        - trainer
+        - lifetime
+        - recentCycles
+        - sentiment
+      properties:
+        trainer:
+          $ref: '#/components/schemas/TrainerListRow'
+        lifetime:
+          type: object
+          required: [sessions, responses, avgRating, completionRate]
+          properties:
+            sessions:
+              type: integer
+            responses:
+              type: integer
+            avgRating:
+              type: number
+            completionRate:
+              type: number
+        recentCycles:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrainerScorecardCycle'
+        sentiment:
+          $ref: '#/components/schemas/SentimentBreakdown'
+
+    PersonStatus:
+      type: string
+      enum: [Active, Inactive]
+
+    PersonRow:
+      type: object
+      required: [id, fullName, email, role, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/Role'
+        status:
+          $ref: '#/components/schemas/PersonStatus'
+        employeeCode:
+          type: string
+          nullable: true
+        managerId:
+          type: string
+          format: uuid
+          nullable: true
+        managerName:
+          type: string
+          nullable: true
+        lastActiveAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    PeoplePage:
+      type: object
+      required: [data, page, pageSize, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonRow'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+
+    FeedbackHistoryItem:
+      type: object
+      description: |
+        A single past or in-progress post-training feedback for the calling Maverick.
+        `overallRating` and `submittedAt` are null while still a draft.
+      required: [cycleId, courseName, status, dueAt]
+      properties:
+        cycleId:
+          type: string
+          format: uuid
+        courseName:
+          type: string
+        trainerName:
+          type: string
+          nullable: true
+        sessionEndedAt:
+          type: string
+          format: date-time
+          nullable: true
+        dueAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [NotStarted, Draft, Submitted]
+        overallRating:
+          type: integer
+          minimum: 1
+          maximum: 5
+          nullable: true
+        submittedAt:
+          type: string
+          format: date-time
+          nullable: true
+        cycleStatus:
+          $ref: '#/components/schemas/CycleStatus'
+
+    FeedbackHistoryPage:
+      type: object
+      required: [data, page, pageSize, total]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeedbackHistoryItem'
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer

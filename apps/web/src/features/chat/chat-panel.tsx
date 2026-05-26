@@ -248,12 +248,6 @@ const AssistantBubble = ({ reply }: { reply: ChatReply }) => (
         <div className="mt-2 flex items-center gap-2 border-t-hairline border-border pt-2 text-[11px] text-ink-subtle">
           <AiBadge degraded={reply.ai.degraded} />
           {reply.ai.sourceCount != null && <span>Based on {reply.ai.sourceCount} sources</span>}
-          <button
-            type="button"
-            className="ml-auto font-medium text-ai-600 hover:underline focus-ring rounded"
-          >
-            View source
-          </button>
         </div>
       </div>
     </div>

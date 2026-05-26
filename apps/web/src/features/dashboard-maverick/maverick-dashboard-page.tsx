@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-header';
 import { LoadingState, ErrorState, EmptyState } from '@/components/feedback/states';
 import { useMaverickDashboard } from './use-maverick-dashboard';
@@ -117,22 +116,23 @@ export const MaverickDashboardPage = () => {
           ) : (
             <ul className="divide-y divide-border">
               {completed.map((c) => (
-                <li
-                  key={c.cycleId}
-                  className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3"
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-ok">
-                    <CheckCircle2 className="h-5 w-5" aria-hidden />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-medium text-ink">{c.courseName}</p>
-                    <p className="truncate text-[12px] text-ink-muted">
-                      Submitted {formatRelativeTime(c.dueAt)}
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm">
-                    View
-                  </Button>
+                <li key={c.cycleId}>
+                  <Link
+                    to={`/feedback/${c.cycleId}`}
+                    className="-mx-2 flex items-center gap-3 rounded-md px-2 py-3 hover:bg-surface-alt focus-ring"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-ok">
+                      <CheckCircle2 className="h-5 w-5" aria-hidden />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[14px] font-medium text-ink">{c.courseName}</p>
+                      <p className="truncate text-[12px] text-ink-muted">
+                        Submitted {formatRelativeTime(c.dueAt)}
+                      </p>
+                    </div>
+                    <span className="text-[12px] font-medium text-brand">View</span>
+                    <ChevronRight className="h-4 w-4 text-ink-subtle" aria-hidden />
+                  </Link>
                 </li>
               ))}
             </ul>

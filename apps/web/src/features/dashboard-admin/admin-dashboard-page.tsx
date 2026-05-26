@@ -1,23 +1,89 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge, AiBadge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-header';
 import { LoadingState, ErrorState, EmptyState } from '@/components/feedback/states';
 import { MetricCard } from '@/components/dashboards/metric-card';
-import { useAdminDashboard } from './use-admin-dashboard';
+import { useAdminDashboard, type AdminDashboardWindow } from './use-admin-dashboard';
 import { useAuthStore } from '@/stores/auth-store';
 import { cn, formatPercent, formatRelativeTime } from '@/lib/utils';
-import { Sparkles, Filter, Download } from 'lucide-react';
+import { Sparkles, Download } from 'lucide-react';
+
+const WINDOW_OPTIONS: { value: AdminDashboardWindow; label: string }[] = [
+  { value: '30d', label: 'Last 30 days' },
+  { value: '90d', label: 'Last 90 days' },
+  { value: 'all', label: 'All time' },
+];
+
+const WINDOWS = new Set<AdminDashboardWindow>(['30d', '90d', 'all']);
+
+const isWindow = (v: string | null): v is AdminDashboardWindow =>
+  v != null && WINDOWS.has(v as AdminDashboardWindow);
 
 export const AdminDashboardPage = () => {
   const user = useAuthStore((s) => s.user);
-  const q = useAdminDashboard();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const raw = params.get('window');
+  const window: AdminDashboardWindow = isWindow(raw) ? raw : '90d';
 
-  if (q.isLoading) return <LoadingState label="Loading dashboard…" />;
+  const q = useAdminDashboard(window);
+
+  const updateWindow = (next: AdminDashboardWindow) => {
+    const sp = new URLSearchParams(params);
+    if (next === '90d') sp.delete('window');
+    else sp.set('window', next);
+    setParams(sp, { replace: true });
+  };
+
+  const headerActions = (
+    <>
+      <label className="sr-only" htmlFor="dashboard-window">
+        Time window
+      </label>
+      <select
+        id="dashboard-window"
+        value={window}
+        onChange={(e) => updateWindow(e.target.value as AdminDashboardWindow)}
+        className="h-8 rounded-md border-hairline border-border bg-surface px-2 text-[12px] font-medium text-ink focus-ring"
+      >
+        {WINDOW_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <Button variant="secondary" size="sm" onClick={() => navigate('/admin/reports')}>
+        <Download className="h-4 w-4" aria-hidden /> Export
+      </Button>
+    </>
+  );
+
+  if (q.isLoading)
+    return (
+      <div>
+        <PageHeader
+          title={`Welcome back, ${user?.fullName.split(' ')[0] ?? ''}`}
+          description="Snapshot of cycle health, sentiment, and trainer performance."
+          actions={headerActions}
+        />
+        <LoadingState label="Loading dashboard…" />
+      </div>
+    );
   if (q.isError)
     return (
-      <ErrorState message={q.error instanceof Error ? q.error.message : 'Unknown error'} onRetry={() => q.refetch()} />
+      <div>
+        <PageHeader
+          title={`Welcome back, ${user?.fullName.split(' ')[0] ?? ''}`}
+          description="Snapshot of cycle health, sentiment, and trainer performance."
+          actions={headerActions}
+        />
+        <ErrorState
+          message={q.error instanceof Error ? q.error.message : 'Unknown error'}
+          onRetry={() => q.refetch()}
+        />
+      </div>
     );
   if (!q.data) return <EmptyState title="No dashboard data yet" />;
 
@@ -28,16 +94,7 @@ export const AdminDashboardPage = () => {
       <PageHeader
         title={`Welcome back, ${user?.fullName.split(' ')[0] ?? ''}`}
         description="Snapshot of cycle health, sentiment, and trainer performance."
-        actions={
-          <>
-            <Button variant="secondary" size="sm">
-              <Filter className="h-4 w-4" aria-hidden /> Filters
-            </Button>
-            <Button variant="secondary" size="sm">
-              <Download className="h-4 w-4" aria-hidden /> Export
-            </Button>
-          </>
-        }
+        actions={headerActions}
       />
 
       <section aria-label="Key metrics" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -92,12 +149,12 @@ export const AdminDashboardPage = () => {
                 ))}
               </div>
             )}
-            <button
-              type="button"
-              className="mt-4 text-[12px] font-medium text-ai-600 hover:underline focus-ring rounded"
+            <Link
+              to="/admin/cycles?status=Closed"
+              className="mt-4 inline-block text-[12px] font-medium text-ai-600 hover:underline focus-ring rounded"
             >
-              View source responses
-            </button>
+              View source cycles →
+            </Link>
           </CardContent>
         </Card>
       </div>

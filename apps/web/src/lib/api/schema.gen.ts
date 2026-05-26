@@ -1053,7 +1053,14 @@ export interface operations {
     };
     getAdminDashboard: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Rolling time window the metrics, sentiment, and trainer scorecard are
+                 *     computed over. Defaults to `90d`. Trend deltas always compare to the
+                 *     immediately preceding window of the same length.
+                 */
+                window?: "30d" | "90d" | "all";
+            };
             header?: never;
             path?: never;
             cookie?: never;

@@ -1,5 +1,11 @@
 export { users, credentials } from './users';
-export { adminDashboard, maverickDashboard, supervisorDashboard } from './dashboards';
+export {
+  adminDashboard,
+  getAdminDashboard,
+  maverickDashboard,
+  supervisorDashboard,
+} from './dashboards';
+export type { AdminDashboardWindow } from './dashboards';
 export {
   feedbackCycles,
   draftStore,

@@ -4,6 +4,8 @@ type AdminDashboard = components['schemas']['AdminDashboard'];
 type MaverickDashboard = components['schemas']['MaverickDashboard'];
 type SupervisorDashboard = components['schemas']['SupervisorDashboard'];
 
+export type AdminDashboardWindow = '30d' | '90d' | 'all';
+
 const isoDaysFromNow = (days: number): string => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + days);
@@ -11,7 +13,7 @@ const isoDaysFromNow = (days: number): string => {
   return d.toISOString();
 };
 
-export const adminDashboard: AdminDashboard = {
+const baseAdminDashboard: AdminDashboard = {
   metrics: [
     {
       key: 'completion',
@@ -110,6 +112,122 @@ export const adminDashboard: AdminDashboard = {
     },
   },
 };
+
+// Window-specific overrides. The 90d view is the baseline. 30d narrows the
+// data (fewer responses, fresher trends); `all` aggregates lifetime numbers.
+// Trainer scorecard rows scale their session/response volume with the window.
+const scaleTrainers = (
+  trainers: AdminDashboard['trainers'],
+  factor: number,
+): AdminDashboard['trainers'] =>
+  trainers.map((t) => ({
+    ...t,
+    sessions: Math.max(1, Math.round(t.sessions * factor)),
+  }));
+
+export const getAdminDashboard = (
+  window: AdminDashboardWindow = '90d',
+): AdminDashboard => {
+  if (window === '30d') {
+    return {
+      ...baseAdminDashboard,
+      metrics: [
+        {
+          key: 'completion',
+          label: 'Cycle completion',
+          value: '79%',
+          helper: 'Across 4 open cycles · last 30 days',
+          trend: { direction: 'down', deltaPct: -2.1 },
+        },
+        {
+          key: 'avgRating',
+          label: 'Avg rating (last 30d)',
+          value: '4.3 / 5',
+          helper: '142 responses',
+          trend: { direction: 'up', deltaPct: 1.4 },
+        },
+        {
+          key: 'cyclesBelowThreshold',
+          label: 'Cycles below 78% threshold',
+          value: '1',
+          helper: 'Block close until override',
+          trend: { direction: 'flat', deltaPct: 0 },
+        },
+        {
+          key: 'pendingApprovals',
+          label: 'AI recommendations pending approval',
+          value: '2',
+          helper: 'Trainer follow-ups + low-rating nudges',
+        },
+      ],
+      sentiment: {
+        ...baseAdminDashboard.sentiment,
+        positive: 0.72,
+        neutral: 0.2,
+        negative: 0.08,
+        ai: { ...baseAdminDashboard.sentiment.ai, sourceCount: 142 },
+      },
+      trainers: scaleTrainers(baseAdminDashboard.trainers, 0.35),
+      insight: {
+        ...baseAdminDashboard.insight,
+        summary:
+          'Last 30 days: sentiment trending up, driven by the Cloud Foundations cohort. One cycle still sits below threshold — close behaviour requires override.',
+        ai: { ...baseAdminDashboard.insight.ai, sourceCount: 142 },
+      },
+    };
+  }
+  if (window === 'all') {
+    return {
+      ...baseAdminDashboard,
+      metrics: [
+        {
+          key: 'completion',
+          label: 'Cycle completion',
+          value: '84%',
+          helper: 'Across 38 closed cycles · lifetime',
+          trend: { direction: 'up', deltaPct: 6.5 },
+        },
+        {
+          key: 'avgRating',
+          label: 'Avg rating (lifetime)',
+          value: '4.1 / 5',
+          helper: '2,310 responses',
+          trend: { direction: 'up', deltaPct: 1.1 },
+        },
+        {
+          key: 'cyclesBelowThreshold',
+          label: 'Cycles below 78% threshold',
+          value: '5',
+          helper: 'Lifetime — includes overrides',
+          trend: { direction: 'down', deltaPct: -3 },
+        },
+        {
+          key: 'pendingApprovals',
+          label: 'AI recommendations pending approval',
+          value: '5',
+          helper: 'Trainer follow-ups + low-rating nudges',
+        },
+      ],
+      sentiment: {
+        ...baseAdminDashboard.sentiment,
+        positive: 0.66,
+        neutral: 0.22,
+        negative: 0.12,
+        ai: { ...baseAdminDashboard.sentiment.ai, sourceCount: 2310 },
+      },
+      trainers: scaleTrainers(baseAdminDashboard.trainers, 3.4),
+      insight: {
+        ...baseAdminDashboard.insight,
+        summary:
+          'Lifetime view: sentiment has gradually improved, with completion now 6 points above the year-ago baseline. "Hands-on labs" remains the most-requested change across all cohorts.',
+        ai: { ...baseAdminDashboard.insight.ai, sourceCount: 2310 },
+      },
+    };
+  }
+  return baseAdminDashboard;
+};
+
+export const adminDashboard: AdminDashboard = baseAdminDashboard;
 
 export const maverickDashboard: MaverickDashboard = {
   pending: [

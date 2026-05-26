@@ -220,17 +220,15 @@ const ReportRow = ({ report, highlighted }: { report: Report; highlighted: boole
         </span>
       )}
       {report.status === 'Ready' && report.downloadUrl && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            // For the stub the URL doesn't resolve to a real file; clicking just no-ops.
-            // The .NET implementation will return a signed Azure Blob URL here.
-            window.alert('Download URL is a stub. Real .NET endpoint will stream the file.');
-          }}
+        <a
+          href={report.downloadUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          download
+          className="inline-flex h-8 items-center gap-2 rounded-md border-hairline border-border bg-surface px-3 text-[12px] font-medium text-ink hover:bg-surface-alt focus-ring"
         >
           <Download className="h-4 w-4" aria-hidden /> Download
-        </Button>
+        </a>
       )}
     </div>
   </li>

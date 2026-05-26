@@ -22,6 +22,7 @@ using HexaLoop.Api.Modules.Cycles;
 using HexaLoop.Api.Modules.Effectiveness;
 using HexaLoop.Api.Modules.Feedback;
 using HexaLoop.Api.Modules.Notifications;
+using HexaLoop.Api.Modules.Trainers;
 using HexaLoop.Api.Modules.Users;
 
 Log.Logger = new LoggerConfiguration()
@@ -127,6 +128,7 @@ try
     api.MapEffectivenessEndpoints();
     api.MapChatEndpoints();
     api.MapReportEndpoints();
+    api.MapTrainerEndpoints();
 
     app.Run();
 }

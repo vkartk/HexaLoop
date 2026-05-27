@@ -18,7 +18,7 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN pnpm --filter web build
 
-FROM caddy:2-alpine
-COPY infra/Caddyfile /etc/caddy/Caddyfile
-COPY --from=build /app/apps/web/dist /srv
+FROM nginx:alpine
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+COPY infra/nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80

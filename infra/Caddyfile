@@ -1,4 +1,4 @@
-:80 {
+HexaLoop.onl.ee {
     root * /srv
 
     handle /api/* {

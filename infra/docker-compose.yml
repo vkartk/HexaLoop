@@ -69,8 +69,16 @@ services:
     container_name: hexaloop-web
     depends_on:
       - api
+
+  caddy:
+    image: caddy:latest
+    container_name: hexaloop-caddy
     ports:
-      - "${WEB_PORT:-80}:80"
+      - "${CADDY_PORT:-80}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - web
 
 volumes:
   hexaloop-pgdata:

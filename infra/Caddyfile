@@ -1,12 +1,9 @@
-HexaLoop.onl.ee {
-    root * /srv
-
+:80 {
     handle /api/* {
         reverse_proxy api:5080
     }
 
     handle {
-        try_files {path} /index.html
-        file_server
+        reverse_proxy web:80
     }
 }
